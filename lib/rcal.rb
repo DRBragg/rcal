@@ -1,3 +1,5 @@
+require_relative "rcal/version"
+
 require "cli/ui"
 require "cli/kit"
 
