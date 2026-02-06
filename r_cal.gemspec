@@ -3,13 +3,13 @@
 require_relative "lib/rcal/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "rcal"
+  spec.name = "r_cal"
   spec.version = Rcal::VERSION
   spec.authors = ["Drew Bragg"]
   spec.email = ["drbragg@gmail.com"]
 
   spec.summary = "A fast, pure Ruby command-line interface for Google Calendar"
-  spec.description = "rcal is a fast CLI tool for Google Calendar with natural language date parsing, " \
+  spec.description = "r_cal is a fast CLI tool for Google Calendar with natural language date parsing, " \
                      "event management, ICS import, and predicate filtering. Built with cli-kit for snappy performance."
   spec.homepage = "https://github.com/DRBragg/rcal"
   spec.license = "MIT"
