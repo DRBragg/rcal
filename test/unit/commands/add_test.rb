@@ -8,6 +8,8 @@ require "rcal/calendar_service"
 module Rcal
   module Commands
     class AddTest < Minitest::Test
+      include AuthTestHelper
+
       def setup
         @temp_dir = Dir.mktmpdir
         @original_stdout = $stdout
@@ -19,13 +21,8 @@ module Rcal
         Auth.reset_adapter!
         CalendarService.reset_adapter!
 
-        # Create token file so we appear authenticated
-        token_path = File.join(@temp_dir, "tokens.json")
-        File.write(token_path, JSON.generate({
-          "access_token" => "test_token",
-          "refresh_token" => "test_refresh",
-          "expires_at" => (Time.now + 3600).to_i
-        }))
+        # Create token files so we appear authenticated
+        write_auth_files(@temp_dir)
 
         @today = Date.today
       end
@@ -441,6 +438,7 @@ module Rcal
       end
 
       def test_rejects_invalid_repeat_frequency
+        CalendarService.adapter = mock_calendar_adapter
         cmd = Add.new
 
         error = assert_raises(CLI::Kit::Abort) do
@@ -455,6 +453,7 @@ module Rcal
       end
 
       def test_rejects_both_count_and_until
+        CalendarService.adapter = mock_calendar_adapter
         cmd = Add.new
 
         error = assert_raises(CLI::Kit::Abort) do
@@ -523,6 +522,7 @@ module Rcal
       end
 
       def test_rejects_invalid_color
+        CalendarService.adapter = mock_calendar_adapter
         cmd = Add.new
 
         error = assert_raises(CLI::Kit::Abort) do
@@ -561,8 +561,8 @@ module Rcal
       # Authentication tests
 
       def test_requires_authentication
-        token_path = File.join(@temp_dir, "tokens.json")
-        FileUtils.rm_f(token_path)
+        FileUtils.rm_f(File.join(@temp_dir, "google_tokens.yaml"))
+        FileUtils.rm_f(File.join(@temp_dir, "client_credentials.json"))
         Auth.reset_adapter!
 
         cmd = Add.new

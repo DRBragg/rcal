@@ -24,6 +24,18 @@ module Rcal
         adapter.clear_credentials
       end
 
+      def load_client_credentials
+        adapter.load_client_credentials
+      end
+
+      def token_path
+        adapter.token_path
+      end
+
+      def client_credentials_path
+        adapter.client_credentials_path
+      end
+
       def adapter
         @adapter ||= default_adapter
       end
@@ -38,7 +50,7 @@ module Rcal
 
       def default_adapter
         Adapters::Auth::Google.new(
-          token_path: File.join(Configuration.data_dir, "tokens.json")
+          data_dir: Configuration.data_dir
         )
       end
     end

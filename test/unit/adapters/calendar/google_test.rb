@@ -966,6 +966,67 @@ module Rcal
           assert_equal "7", result.color_id
         end
 
+        # Auth Error Handling Tests
+
+        def test_list_calendars_raises_abort_on_google_auth_error
+          @mock_service.expects(:list_calendar_lists)
+            .raises(::Google::Apis::AuthorizationError.new("unauthorized"))
+
+          error = assert_raises(CLI::Kit::Abort) { @adapter.list_calendars }
+          assert_match(/Authentication expired or revoked/, error.message)
+          assert_match(/rcal init/, error.message)
+        end
+
+        def test_list_events_raises_abort_on_signet_auth_error
+          @mock_service.expects(:list_events)
+            .raises(Signet::AuthorizationError.new("Token has been revoked"))
+
+          error = assert_raises(CLI::Kit::Abort) do
+            @adapter.list_events(
+              calendar_id: "primary",
+              time_min: Time.now,
+              time_max: Time.now + 86400
+            )
+          end
+          assert_match(/Authentication expired or revoked/, error.message)
+        end
+
+        def test_create_event_raises_abort_on_auth_error
+          input_event = Rcal::Event.new(
+            summary: "Meeting",
+            start_time: Time.now,
+            end_time: Time.now + 3600
+          )
+
+          @mock_service.expects(:insert_event)
+            .raises(::Google::Apis::AuthorizationError.new("unauthorized"))
+
+          error = assert_raises(CLI::Kit::Abort) do
+            @adapter.create_event(calendar_id: "primary", event: input_event)
+          end
+          assert_match(/rcal init/, error.message)
+        end
+
+        def test_delete_event_raises_abort_on_auth_error
+          @mock_service.expects(:delete_event)
+            .raises(Signet::AuthorizationError.new("revoked"))
+
+          error = assert_raises(CLI::Kit::Abort) do
+            @adapter.delete_event(calendar_id: "primary", event_id: "event1")
+          end
+          assert_match(/rcal init/, error.message)
+        end
+
+        def test_quick_add_raises_abort_on_auth_error
+          @mock_service.expects(:quick_add_event)
+            .raises(::Google::Apis::AuthorizationError.new("unauthorized"))
+
+          error = assert_raises(CLI::Kit::Abort) do
+            @adapter.quick_add(calendar_id: "primary", text: "Meeting tomorrow")
+          end
+          assert_match(/rcal init/, error.message)
+        end
+
         private
 
         def stub_calendar_list_response(calendars)

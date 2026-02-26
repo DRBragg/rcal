@@ -7,6 +7,8 @@ require "rcal/calendar_service"
 module Rcal
   module Commands
     class AgendaTest < Minitest::Test
+      include AuthTestHelper
+
       def setup
         @temp_dir = Dir.mktmpdir
         @original_stdout = $stdout
@@ -19,13 +21,8 @@ module Rcal
         Auth.reset_adapter!
         CalendarService.reset_adapter!
 
-        # Create token file so we appear authenticated
-        token_path = File.join(@temp_dir, "tokens.json")
-        File.write(token_path, JSON.generate({
-          "access_token" => "test_token",
-          "refresh_token" => "test_refresh",
-          "expires_at" => (Time.now + 3600).to_i
-        }))
+        # Create token files so we appear authenticated
+        write_auth_files(@temp_dir)
 
         @today = Date.today
       end
@@ -271,10 +268,11 @@ module Rcal
       # Authentication tests
 
       def test_requires_authentication
-        token_path = File.join(@temp_dir, "tokens.json")
-        FileUtils.rm_f(token_path)
+        # Remove auth files written by setup so we appear unauthenticated
+        FileUtils.rm_f(File.join(@temp_dir, "google_tokens.yaml"))
+        FileUtils.rm_f(File.join(@temp_dir, "client_credentials.json"))
 
-        # Reset auth adapter to pick up the missing file
+        # Reset auth adapter to pick up the missing files
         Auth.reset_adapter!
 
         cmd = Agenda.new

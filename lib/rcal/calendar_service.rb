@@ -2,6 +2,7 @@ require "json"
 require "yaml"
 require "google/apis/calendar_v3"
 require "googleauth"
+require "googleauth/stores/file_token_store"
 require_relative "adapters/calendar/google"
 require_relative "auth"
 require_relative "config"
@@ -67,40 +68,29 @@ module Rcal
         service
       end
 
+      # Load credentials via UserAuthorizer so refreshed tokens are
+      # automatically persisted back to google_tokens.yaml via the
+      # on_refresh callback (see UserAuthorizer#monitor_credentials).
       def load_credentials
-        client_creds = load_client_credentials
-        token_data = load_google_token_data
+        client_creds = Auth.load_client_credentials
+        return nil if client_creds.nil?
 
-        return nil if client_creds.nil? || token_data.nil?
-
-        Google::Auth::UserRefreshCredentials.new(
-          client_id: client_creds["client_id"],
-          client_secret: client_creds["client_secret"],
-          access_token: token_data["access_token"],
-          refresh_token: token_data["refresh_token"],
-          expires_at: token_data["expiration_time_millis"] ? Time.at(token_data["expiration_time_millis"] / 1000) : nil
+        token_store = Google::Auth::Stores::FileTokenStore.new(
+          file: Auth.token_path
         )
-      end
 
-      def load_client_credentials
-        creds_file = File.join(Configuration.data_dir, "client_credentials.json")
-        return nil unless File.exist?(creds_file)
+        client_id = Google::Auth::ClientId.new(
+          client_creds["client_id"],
+          client_creds["client_secret"]
+        )
 
-        JSON.parse(File.read(creds_file))
-      rescue JSON::ParserError
-        nil
-      end
+        authorizer = Google::Auth::UserAuthorizer.new(
+          client_id,
+          Adapters::Auth::Google::SCOPES,
+          token_store
+        )
 
-      def load_google_token_data
-        token_file = File.join(Configuration.data_dir, "google_tokens.yaml")
-        return nil unless File.exist?(token_file)
-
-        yaml_data = YAML.safe_load_file(token_file)
-        return nil unless yaml_data&.key?("default")
-
-        JSON.parse(yaml_data["default"])
-      rescue JSON::ParserError, Psych::SyntaxError
-        nil
+        authorizer.get_credentials("default")
       end
     end
   end
