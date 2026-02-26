@@ -95,7 +95,7 @@ GEM
       ast (~> 2.4.1)
       racc
     prism (1.9.0)
-    pstore (0.2.0)
+    pstore (0.2.1)
     public_suffix (7.0.2)
     racc (1.8.1)
     rainbow (3.1.1)
@@ -208,7 +208,7 @@ CHECKSUMS
   parallel (1.27.0) sha256=4ac151e1806b755fb4e2dc2332cbf0e54f2e24ba821ff2d3dcf86bf6dc4ae130
   parser (3.3.10.1) sha256=06f6a725d2cd91e5e7f2b7c32ba143631e1f7c8ae2fb918fc4cebec187e6a688
   prism (1.9.0) sha256=7b530c6a9f92c24300014919c9dcbc055bf4cdf51ec30aed099b06cd6674ef85
-  pstore (0.2.0) sha256=d6e5c7e8e22392235e88bbe82959059ba768a797b5bd0ebf5ac80a3311ce74a8
+  pstore (0.2.1) sha256=03904d0f2c66579e96d1e6704cdabc0c88df7ea8ed8782d9f3569f6f6c702c1a
   public_suffix (7.0.2) sha256=9114090c8e4e7135c1fd0e7acfea33afaab38101884320c65aaa0ffb8e26a857
   r_cal (0.2.0)
   racc (1.8.1) sha256=4a7f6929691dbec8b5209a0b373bc2614882b55fc5d2e447a21aaa691303d62f
