@@ -57,7 +57,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "standard"
 
   # Test dependencies
-  spec.add_development_dependency "mocha", "~> 2.1"
+  spec.add_development_dependency "mocha", "~> 3.0"
   spec.add_development_dependency "minitest", "~> 5.20"
   spec.add_development_dependency "minitest-reporters"
   spec.add_development_dependency "timecop", "~> 0.9"
