@@ -104,7 +104,7 @@ module Rcal
         # Google Calendar accepts both; we use the date-only form for simplicity.
         date = Date.parse(until_date.to_s)
         date.strftime("%Y%m%dT235959Z")
-      rescue Date::Error, ArgumentError
+      rescue ArgumentError
         raise Rcal::Error,
           "Could not parse until date: #{until_date}. Use a date like '2024-12-31'."
       end
