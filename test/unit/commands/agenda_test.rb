@@ -193,18 +193,79 @@ module Rcal
 
       # Days flag tests
 
-      def test_days_flag_extends_date_range
+      def test_days_flag_passes_correct_date_range_to_adapter
         mock_adapter = mock("calendar_adapter")
 
-        # With --days=7, should fetch a week's worth
-        mock_adapter.expects(:list_events).returns([])
+        expected_time_min = @today.to_time
+        expected_time_max = (@today + 7).to_time
+
+        mock_adapter.expects(:list_events).with(
+          has_entries(
+            calendar_id: "primary",
+            time_min: expected_time_min,
+            time_max: expected_time_max
+          )
+        ).returns([])
+        CalendarService.adapter = mock_adapter
+
+        cmd = Agenda.new
+        cmd.call(["--days=7"], "agenda")
+      end
+
+      def test_days_flag_with_start_date_passes_correct_range
+        mock_adapter = mock("calendar_adapter")
+
+        tomorrow = @today + 1
+        expected_time_min = tomorrow.to_time
+        expected_time_max = (tomorrow + 3).to_time
+
+        mock_adapter.expects(:list_events).with(
+          has_entries(
+            time_min: expected_time_min,
+            time_max: expected_time_max
+          )
+        ).returns([])
+        CalendarService.adapter = mock_adapter
+
+        cmd = Agenda.new
+        cmd.stubs(:parse_date).with("tomorrow").returns(tomorrow)
+        cmd.call(["tomorrow", "--days=3"], "agenda")
+      end
+
+      def test_days_flag_with_all_day_events
+        all_day_event = build_event(
+          summary: "Company Holiday",
+          start_time: today_at(0, 0),
+          all_day: true
+        )
+        timed_event = build_event(
+          summary: "Standup",
+          start_time: today_at(9, 0)
+        )
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:list_events).returns([all_day_event, timed_event])
         CalendarService.adapter = mock_adapter
 
         cmd = Agenda.new
         cmd.call(["--days=7"], "agenda")
 
-        # The command should have calculated a 7-day range
-        # We can verify by checking the formatter received the right data
+        assert_includes captured_output, "Company Holiday"
+        assert_includes captured_output, "Standup"
+      end
+
+      def test_days_flag_shows_empty_days_in_range
+        event = build_event(summary: "Monday Only", start_time: today_at(10, 0))
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:list_events).returns([event])
+        CalendarService.adapter = mock_adapter
+
+        cmd = Agenda.new
+        cmd.call(["--days=3"], "agenda")
+
+        # Should show "No events" for the days without events
+        assert_match(/no events/i, captured_output)
       end
 
       # Authentication tests

@@ -67,6 +67,20 @@ module Rcal
       assert_equal "work@example.com", event.calendar_id
     end
 
+    # Color
+
+    def test_has_color_id
+      event = Event.new(summary: "Meeting", start_time: Time.now, color_id: "11")
+
+      assert_equal "11", event.color_id
+    end
+
+    def test_color_id_defaults_to_nil
+      event = Event.new(summary: "Meeting", start_time: Time.now)
+
+      assert_nil event.color_id
+    end
+
     # All-day events
 
     def test_all_day_defaults_to_false

@@ -11,6 +11,7 @@ module Rcal
 
     register :Add, "add", "rcal/commands/add"
     register :Agenda, "agenda", "rcal/commands/agenda"
+    register :Colors, "colors", "rcal/commands/colors"
     register :Edit, "edit", "rcal/commands/edit"
     register :Help, "help", "rcal/commands/help"
     register :Import, "import", "rcal/commands/import"

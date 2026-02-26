@@ -4,7 +4,8 @@ module Rcal
   class Event
     attr_reader :id, :summary, :start_time, :end_time, :description,
       :location, :calendar_id, :transparency, :recurrence,
-      :recurring_event_id, :response_status, :attendees, :timezone
+      :recurring_event_id, :response_status, :attendees, :timezone,
+      :color_id
 
     def initialize(
       summary:,
@@ -20,7 +21,8 @@ module Rcal
       recurring_event_id: nil,
       response_status: nil,
       attendees: nil,
-      timezone: nil
+      timezone: nil,
+      color_id: nil
     )
       @id = id
       @summary = summary
@@ -36,6 +38,7 @@ module Rcal
       @response_status = response_status
       @attendees = normalize_attendees(attendees)
       @timezone = timezone
+      @color_id = color_id
     end
 
     def all_day?

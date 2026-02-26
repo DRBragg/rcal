@@ -163,6 +163,66 @@ module Rcal
           assert_equal "Vacation", event.summary
         end
 
+        def test_list_events_all_day_event_has_correct_time_values
+          google_response = stub_events_response([
+            {
+              id: "allday1",
+              summary: "Vacation",
+              start: {date: "2024-01-15"},
+              end: {date: "2024-01-16"}
+            }
+          ])
+
+          @mock_service.expects(:list_events).returns(google_response)
+
+          event = @adapter.list_events(
+            calendar_id: "primary",
+            time_min: Time.new(2024, 1, 14),
+            time_max: Time.new(2024, 1, 17)
+          ).first
+
+          assert_instance_of Time, event.start_time
+          assert_instance_of Time, event.end_time
+          assert_equal Date.new(2024, 1, 15), event.start_time.to_date
+          assert_equal Date.new(2024, 1, 16), event.end_time.to_date
+        end
+
+        def test_list_events_handles_mixed_timed_and_all_day_events
+          google_response = stub_events_response([
+            {
+              id: "allday1",
+              summary: "Company Holiday",
+              start: {date: "2024-01-15"},
+              end: {date: "2024-01-16"}
+            },
+            {
+              id: "timed1",
+              summary: "Morning Standup",
+              start: {date_time: "2024-01-15T09:00:00-05:00", time_zone: "America/New_York"},
+              end: {date_time: "2024-01-15T09:30:00-05:00", time_zone: "America/New_York"}
+            }
+          ])
+
+          @mock_service.expects(:list_events).returns(google_response)
+
+          events = @adapter.list_events(
+            calendar_id: "primary",
+            time_min: Time.new(2024, 1, 14),
+            time_max: Time.new(2024, 1, 17)
+          )
+
+          assert_equal 2, events.length
+
+          all_day_event = events.find { |e| e.id == "allday1" }
+          timed_event = events.find { |e| e.id == "timed1" }
+
+          assert all_day_event.all_day?
+          refute timed_event.all_day?
+
+          assert_instance_of Time, all_day_event.start_time
+          assert_instance_of Time, timed_event.start_time
+        end
+
         def test_list_events_extracts_self_response_status
           google_response = stub_events_response([
             {
@@ -491,6 +551,121 @@ module Rcal
           )
         end
 
+        # Color ID tests
+
+        def test_list_events_maps_color_id
+          google_response = stub_events_response([
+            {
+              id: "event1",
+              summary: "Important Meeting",
+              start: {date_time: Time.new(2024, 1, 15, 10, 0, 0).iso8601},
+              end: {date_time: Time.new(2024, 1, 15, 11, 0, 0).iso8601},
+              color_id: "11"
+            }
+          ])
+
+          @mock_service.expects(:list_events).returns(google_response)
+
+          event = @adapter.list_events(
+            calendar_id: "primary",
+            time_min: Time.new(2024, 1, 14),
+            time_max: Time.new(2024, 1, 17)
+          ).first
+
+          assert_equal "11", event.color_id
+        end
+
+        def test_list_events_color_id_nil_when_unset
+          google_response = stub_events_response([
+            {
+              id: "event1",
+              summary: "Plain Meeting",
+              start: {date_time: Time.new(2024, 1, 15, 10, 0, 0).iso8601},
+              end: {date_time: Time.new(2024, 1, 15, 11, 0, 0).iso8601}
+            }
+          ])
+
+          @mock_service.expects(:list_events).returns(google_response)
+
+          event = @adapter.list_events(
+            calendar_id: "primary",
+            time_min: Time.new(2024, 1, 14),
+            time_max: Time.new(2024, 1, 17)
+          ).first
+
+          assert_nil event.color_id
+        end
+
+        def test_create_event_sets_color_id
+          input_event = Rcal::Event.new(
+            summary: "Important Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0),
+            color_id: "11"
+          )
+
+          created_event = stub_single_event(
+            id: "new1",
+            summary: "Important Meeting",
+            color_id: "11"
+          )
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_equal "11", google_event.color_id
+            true
+          end.returns(created_event)
+
+          result = @adapter.create_event(calendar_id: "primary", event: input_event)
+
+          assert_equal "11", result.color_id
+        end
+
+        def test_create_event_omits_color_id_when_nil
+          input_event = Rcal::Event.new(
+            summary: "Plain Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0)
+          )
+
+          created_event = stub_single_event(id: "new1", summary: "Plain Meeting")
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_nil google_event.color_id
+            true
+          end.returns(created_event)
+
+          @adapter.create_event(calendar_id: "primary", event: input_event)
+        end
+
+        def test_update_event_sets_color_id
+          input_event = Rcal::Event.new(
+            id: "existing123",
+            summary: "Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0),
+            color_id: "7"
+          )
+
+          updated_event = stub_single_event(
+            id: "existing123",
+            summary: "Meeting",
+            color_id: "7"
+          )
+
+          @mock_service.expects(:update_event).with("primary", "existing123", anything) do |_cal, _id, google_event|
+            assert_equal "7", google_event.color_id
+            true
+          end.returns(updated_event)
+
+          result = @adapter.update_event(
+            calendar_id: "primary",
+            event_id: "existing123",
+            event: input_event
+          )
+
+          assert_equal "7", result.color_id
+        end
+
         private
 
         def stub_calendar_list_response(calendars)
@@ -512,6 +687,39 @@ module Rcal
           response
         end
 
+        # Converts a date string to a Date object to match the Google API gem's
+        # deserialization behavior (property :date, type: Date).
+        def coerce_date(value)
+          value.is_a?(String) ? Date.parse(value) : value
+        end
+
+        def stub_event_time_obj(name, data)
+          obj = mock(name)
+          if data
+            obj.stubs(:date_time).returns(data[:date_time] ? Time.parse(data[:date_time]) : nil)
+            obj.stubs(:date).returns(data[:date] ? coerce_date(data[:date]) : nil)
+            obj.stubs(:time_zone).returns(data[:time_zone])
+          else
+            obj.stubs(:date_time).returns(Time.now)
+            obj.stubs(:date).returns(nil)
+            obj.stubs(:time_zone).returns(nil)
+          end
+          obj
+        end
+
+        def stub_attendees(attendees)
+          return nil if attendees.nil?
+
+          attendees.map do |att|
+            att_obj = mock("attendee")
+            att_obj.stubs(:email).returns(att[:email])
+            att_obj.stubs(:response_status).returns(att[:response_status])
+            att_obj.stubs(:self).returns(att[:self])
+            att_obj.stubs(:resource).returns(att[:resource])
+            att_obj
+          end
+        end
+
         def stub_single_event(
           id:,
           summary:,
@@ -522,8 +730,11 @@ module Rcal
           transparency: nil,
           recurrence: nil,
           recurring_event_id: nil,
-          attendees: nil
+          attendees: nil,
+          color_id: nil
         )
+          end_data = binding.local_variable_get(:end)
+
           item = mock("event_entry_#{id}")
           item.stubs(:id).returns(id)
           item.stubs(:summary).returns(summary)
@@ -532,48 +743,14 @@ module Rcal
           item.stubs(:transparency).returns(transparency)
           item.stubs(:recurrence).returns(recurrence)
           item.stubs(:recurring_event_id).returns(recurring_event_id)
+          item.stubs(:color_id).returns(color_id)
 
-          # Start time
-          start_obj = mock("start_#{id}")
-          if start
-            start_obj.stubs(:date_time).returns(start[:date_time] ? Time.parse(start[:date_time]) : nil)
-            start_obj.stubs(:date).returns(start[:date])
-            start_obj.stubs(:time_zone).returns(start[:time_zone])
-          else
-            start_obj.stubs(:date_time).returns(Time.now)
-            start_obj.stubs(:date).returns(nil)
-            start_obj.stubs(:time_zone).returns(nil)
-          end
-          item.stubs(:start).returns(start_obj)
+          item.stubs(:start).returns(stub_event_time_obj("start_#{id}", start))
 
-          # End time
-          end_obj = mock("end_#{id}")
-          if binding.local_variable_get(:end)
-            end_data = binding.local_variable_get(:end)
-            end_obj.stubs(:date_time).returns(end_data[:date_time] ? Time.parse(end_data[:date_time]) : nil)
-            end_obj.stubs(:date).returns(end_data[:date])
-            end_obj.stubs(:time_zone).returns(end_data[:time_zone])
-          else
-            end_obj.stubs(:date_time).returns(Time.now + 3600)
-            end_obj.stubs(:date).returns(nil)
-            end_obj.stubs(:time_zone).returns(nil)
-          end
-          item.stubs(:end).returns(end_obj)
+          default_end = start ? nil : {date_time: (Time.now + 3600).iso8601}
+          item.stubs(:end).returns(stub_event_time_obj("end_#{id}", end_data || default_end))
 
-          # Attendees
-          if attendees
-            attendee_objs = attendees.map do |att|
-              att_obj = mock("attendee")
-              att_obj.stubs(:email).returns(att[:email])
-              att_obj.stubs(:response_status).returns(att[:response_status])
-              att_obj.stubs(:self).returns(att[:self])
-              att_obj.stubs(:resource).returns(att[:resource])
-              att_obj
-            end
-            item.stubs(:attendees).returns(attendee_objs)
-          else
-            item.stubs(:attendees).returns(nil)
-          end
+          item.stubs(:attendees).returns(stub_attendees(attendees))
 
           item
         end
@@ -588,47 +765,14 @@ module Rcal
             item.stubs(:transparency).returns(evt[:transparency])
             item.stubs(:recurrence).returns(evt[:recurrence])
             item.stubs(:recurring_event_id).returns(evt[:recurring_event_id])
+            item.stubs(:color_id).returns(evt[:color_id])
 
-            # Start time
-            start_obj = mock("start")
-            if evt[:start]
-              start_obj.stubs(:date_time).returns(evt[:start][:date_time] ? Time.parse(evt[:start][:date_time]) : nil)
-              start_obj.stubs(:date).returns(evt[:start][:date])
-              start_obj.stubs(:time_zone).returns(evt[:start][:time_zone])
-            else
-              start_obj.stubs(:date_time).returns(Time.now)
-              start_obj.stubs(:date).returns(nil)
-              start_obj.stubs(:time_zone).returns(nil)
-            end
-            item.stubs(:start).returns(start_obj)
+            item.stubs(:start).returns(stub_event_time_obj("start", evt[:start]))
 
-            # End time
-            end_obj = mock("end")
-            if evt[:end]
-              end_obj.stubs(:date_time).returns(evt[:end][:date_time] ? Time.parse(evt[:end][:date_time]) : nil)
-              end_obj.stubs(:date).returns(evt[:end][:date])
-              end_obj.stubs(:time_zone).returns(evt[:end][:time_zone])
-            else
-              end_obj.stubs(:date_time).returns(Time.now + 3600)
-              end_obj.stubs(:date).returns(nil)
-              end_obj.stubs(:time_zone).returns(nil)
-            end
-            item.stubs(:end).returns(end_obj)
+            default_end = evt[:start] ? nil : {date_time: (Time.now + 3600).iso8601}
+            item.stubs(:end).returns(stub_event_time_obj("end", evt[:end] || default_end))
 
-            # Attendees
-            if evt[:attendees]
-              attendee_objs = evt[:attendees].map do |att|
-                att_obj = mock("attendee")
-                att_obj.stubs(:email).returns(att[:email])
-                att_obj.stubs(:response_status).returns(att[:response_status])
-                att_obj.stubs(:self).returns(att[:self])
-                att_obj.stubs(:resource).returns(att[:resource])
-                att_obj
-              end
-              item.stubs(:attendees).returns(attendee_objs)
-            else
-              item.stubs(:attendees).returns(nil)
-            end
+            item.stubs(:attendees).returns(stub_attendees(evt[:attendees]))
 
             item
           end

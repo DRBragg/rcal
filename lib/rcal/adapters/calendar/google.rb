@@ -93,7 +93,8 @@ module Rcal
             recurring_event_id: google_event.recurring_event_id,
             response_status: extract_self_response_status(google_event.attendees),
             attendees: build_attendees(google_event.attendees),
-            timezone: google_event.start&.time_zone
+            timezone: google_event.start&.time_zone,
+            color_id: google_event.color_id
           )
         end
 
@@ -134,7 +135,8 @@ module Rcal
           google_event = ::Google::Apis::CalendarV3::Event.new(
             summary: event.summary,
             description: event.description,
-            location: event.location
+            location: event.location,
+            color_id: event.color_id
           )
 
           if event.all_day?
