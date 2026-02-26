@@ -10,6 +10,10 @@ module Rcal
           raise NotImplementedError, "#{self.class} must implement #list_events"
         end
 
+        def get_calendar(calendar_id:)
+          raise NotImplementedError, "#{self.class} must implement #get_calendar"
+        end
+
         def get_event(calendar_id:, event_id:)
           raise NotImplementedError, "#{self.class} must implement #get_event"
         end

@@ -79,6 +79,55 @@ module Rcal
           assert_equal [], calendars
         end
 
+        # Get Calendar Tests
+
+        def test_get_calendar_returns_calendar_object
+          google_calendar = mock("calendar")
+          google_calendar.stubs(:id).returns("primary")
+          google_calendar.stubs(:summary).returns("My Calendar")
+          google_calendar.stubs(:description).returns("Personal calendar")
+          google_calendar.stubs(:time_zone).returns("America/New_York")
+          google_calendar.stubs(:background_color).returns("#4285f4")
+          google_calendar.stubs(:access_role).returns("owner")
+          google_calendar.stubs(:primary).returns(true)
+          google_calendar.stubs(:selected).returns(true)
+
+          @mock_service.expects(:get_calendar).with("primary").returns(google_calendar)
+
+          calendar = @adapter.get_calendar(calendar_id: "primary")
+
+          assert_instance_of Rcal::Calendar, calendar
+          assert_equal "primary", calendar.id
+          assert_equal "My Calendar", calendar.name
+          assert_equal "America/New_York", calendar.timezone
+        end
+
+        def test_get_calendar_maps_all_fields
+          google_calendar = mock("calendar")
+          google_calendar.stubs(:id).returns("work@group.calendar.google.com")
+          google_calendar.stubs(:summary).returns("Work")
+          google_calendar.stubs(:description).returns("Work calendar")
+          google_calendar.stubs(:time_zone).returns("America/Chicago")
+          google_calendar.stubs(:background_color).returns("#0b8043")
+          google_calendar.stubs(:access_role).returns("writer")
+          google_calendar.stubs(:primary).returns(false)
+          google_calendar.stubs(:selected).returns(true)
+
+          @mock_service.expects(:get_calendar)
+            .with("work@group.calendar.google.com")
+            .returns(google_calendar)
+
+          calendar = @adapter.get_calendar(calendar_id: "work@group.calendar.google.com")
+
+          assert_equal "Work", calendar.name
+          assert_equal "Work calendar", calendar.description
+          assert_equal "America/Chicago", calendar.timezone
+          assert_equal "#0b8043", calendar.color
+          assert_equal "writer", calendar.access_role
+          refute calendar.primary?
+          assert calendar.selected?
+        end
+
         # List Events Tests
 
         def test_list_events_returns_array_of_event_objects
@@ -548,6 +597,185 @@ module Rcal
             calendar_id: "primary",
             time_min: time_min,
             time_max: time_max
+          )
+        end
+
+        # Recurrence tests
+
+        def test_create_event_sets_recurrence
+          input_event = Rcal::Event.new(
+            summary: "Weekly Standup",
+            start_time: Time.new(2024, 1, 15, 9, 0, 0),
+            end_time: Time.new(2024, 1, 15, 9, 30, 0),
+            recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"],
+            timezone: "America/New_York"
+          )
+
+          created_event = stub_single_event(
+            id: "recurring1",
+            summary: "Weekly Standup",
+            recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"]
+          )
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_equal ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"], google_event.recurrence
+            true
+          end.returns(created_event)
+
+          result = @adapter.create_event(calendar_id: "primary", event: input_event)
+
+          assert_equal ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"], result.recurrence
+        end
+
+        def test_create_event_recurrence_nil_when_not_set
+          input_event = Rcal::Event.new(
+            summary: "One-off Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0)
+          )
+
+          created_event = stub_single_event(id: "new1", summary: "One-off Meeting")
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_nil google_event.recurrence
+            true
+          end.returns(created_event)
+
+          @adapter.create_event(calendar_id: "primary", event: input_event)
+        end
+
+        def test_update_event_sets_recurrence
+          input_event = Rcal::Event.new(
+            id: "existing123",
+            summary: "Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0),
+            recurrence: ["RRULE:FREQ=DAILY;COUNT=5"],
+            timezone: "America/New_York"
+          )
+
+          updated_event = stub_single_event(id: "existing123", summary: "Meeting")
+
+          @mock_service.expects(:update_event).with("primary", "existing123", anything) do |_cal, _id, google_event|
+            assert_equal ["RRULE:FREQ=DAILY;COUNT=5"], google_event.recurrence
+            true
+          end.returns(updated_event)
+
+          @adapter.update_event(
+            calendar_id: "primary",
+            event_id: "existing123",
+            event: input_event
+          )
+        end
+
+        def test_update_event_clears_recurrence_with_nil
+          input_event = Rcal::Event.new(
+            id: "existing123",
+            summary: "Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0),
+            recurrence: nil
+          )
+
+          updated_event = stub_single_event(id: "existing123", summary: "Meeting")
+
+          @mock_service.expects(:update_event).with("primary", "existing123", anything) do |_cal, _id, google_event|
+            assert_nil google_event.recurrence
+            true
+          end.returns(updated_event)
+
+          @adapter.update_event(
+            calendar_id: "primary",
+            event_id: "existing123",
+            event: input_event
+          )
+        end
+
+        # Timezone tests
+
+        def test_create_event_sets_timezone_on_timed_event
+          input_event = Rcal::Event.new(
+            summary: "Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0),
+            timezone: "America/New_York"
+          )
+
+          created_event = stub_single_event(id: "new1", summary: "Meeting")
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_equal "America/New_York", google_event.start.time_zone
+            assert_equal "America/New_York", google_event.end.time_zone
+            true
+          end.returns(created_event)
+
+          @adapter.create_event(calendar_id: "primary", event: input_event)
+        end
+
+        def test_create_event_sets_timezone_on_all_day_event
+          input_event = Rcal::Event.new(
+            summary: "Vacation",
+            start_time: Date.new(2024, 1, 15).to_time,
+            end_time: Date.new(2024, 1, 16).to_time,
+            all_day: true,
+            timezone: "America/Chicago"
+          )
+
+          created_event = stub_single_event(
+            id: "allday1",
+            summary: "Vacation",
+            start: {date: "2024-01-15"},
+            end: {date: "2024-01-16"}
+          )
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_equal "America/Chicago", google_event.start.time_zone
+            assert_equal "America/Chicago", google_event.end.time_zone
+            true
+          end.returns(created_event)
+
+          @adapter.create_event(calendar_id: "primary", event: input_event)
+        end
+
+        def test_create_event_timezone_nil_when_not_set
+          input_event = Rcal::Event.new(
+            summary: "Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0)
+          )
+
+          created_event = stub_single_event(id: "new1", summary: "Meeting")
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_nil google_event.start.time_zone
+            assert_nil google_event.end.time_zone
+            true
+          end.returns(created_event)
+
+          @adapter.create_event(calendar_id: "primary", event: input_event)
+        end
+
+        def test_update_event_sets_timezone
+          input_event = Rcal::Event.new(
+            id: "existing123",
+            summary: "Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0),
+            timezone: "Europe/London"
+          )
+
+          updated_event = stub_single_event(id: "existing123", summary: "Meeting")
+
+          @mock_service.expects(:update_event).with("primary", "existing123", anything) do |_cal, _id, google_event|
+            assert_equal "Europe/London", google_event.start.time_zone
+            assert_equal "Europe/London", google_event.end.time_zone
+            true
+          end.returns(updated_event)
+
+          @adapter.update_event(
+            calendar_id: "primary",
+            event_id: "existing123",
+            event: input_event
           )
         end
 

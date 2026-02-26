@@ -6,6 +6,8 @@ require_relative "../duration_parser"
 require_relative "../models/event"
 require_relative "../presenters/event_presenter"
 require_relative "../color_map"
+require_relative "../timezone_resolver"
+require_relative "../recurrence_builder"
 
 module Rcal
   module Commands
@@ -28,13 +30,23 @@ module Rcal
             --description=TEXT  Event description
             --calendar=ID       Calendar to add event to (default: primary)
             --color=COLOR       Event color (name or ID). Run 'rcal colors' to see options
+            --timezone=TZ       IANA timezone (e.g., "America/New_York"). Default: calendar's timezone
             --all-day           Create an all-day event
+
+          Recurrence:
+            --repeat=FREQ       Recurrence frequency: daily, weekly, monthly, yearly
+            --days=DAYS         Days of week (e.g., "MO,WE,FR" or "Monday,Wed"). Requires --repeat
+            --count=N           Number of occurrences. Cannot be used with --until
+            --until=DATE        End date for recurrence. Cannot be used with --count
+            --interval=N        Repeat every N periods (e.g., --repeat=weekly --interval=2 = biweekly)
 
           Examples:
             rcal add --title="Team Meeting" --when="tomorrow 3pm"
             rcal add --title="Lunch" --when="friday noon" --duration=1h --location="Cafe"
             rcal add --title="Vacation" --when="monday" --all-day
             rcal add --title="Important" --when="tomorrow 9am" --color=tomato
+            rcal add --title="Standup" --when="monday 9am" --repeat=weekly --days=MO,WE,FR
+            rcal add --title="1:1" --when="monday 2pm" --repeat=weekly --interval=2 --count=10
         HELP
       end
 
@@ -56,7 +68,7 @@ module Rcal
 
       private
 
-      VALUE_OPTIONS = %w[title when duration location description calendar color].freeze
+      VALUE_OPTIONS = %w[title when duration location description calendar color timezone repeat days count until interval].freeze
       FLAG_OPTIONS = {"all-day" => :all_day}.freeze
 
       def parse_options(args)
@@ -94,12 +106,27 @@ module Rcal
           raise CLI::Kit::Abort, "When is required.\n" \
             "Usage: rcal add --title=\"Meeting\" --when=\"tomorrow 3pm\""
         end
+
+        validate_recurrence_options!(options)
+      end
+
+      def validate_recurrence_options!(options)
+        recurrence_modifiers = %i[days count until interval]
+        has_modifiers = recurrence_modifiers.any? { |key| options[key] }
+
+        if has_modifiers && options[:repeat].nil?
+          raise CLI::Kit::Abort,
+            "Recurrence modifiers (--days, --count, --until, --interval) require --repeat.\n" \
+            "Usage: rcal add --title=\"Meeting\" --when=\"monday 9am\" --repeat=weekly --days=MO,WE,FR"
+        end
       end
 
       def build_event(options)
         start_time = parse_start_time(options[:when])
         duration = parse_duration(options[:duration])
         end_time = calculate_end_time(start_time, duration, options[:all_day])
+        timezone = resolve_timezone(options[:timezone], options[:calendar])
+        recurrence = build_recurrence(options)
 
         Event.new(
           summary: options[:title],
@@ -108,7 +135,9 @@ module Rcal
           location: options[:location],
           description: options[:description],
           all_day: options[:all_day],
-          color_id: resolve_color(options[:color])
+          color_id: resolve_color(options[:color]),
+          timezone: timezone,
+          recurrence: recurrence
         )
       end
 
@@ -133,6 +162,24 @@ module Rcal
         else
           start_time + duration
         end
+      end
+
+      def build_recurrence(options)
+        return nil unless options[:repeat]
+
+        RecurrenceBuilder.build(
+          freq: options[:repeat],
+          days: options[:days],
+          count: options[:count],
+          until_date: options[:until],
+          interval: options[:interval]
+        )
+      rescue Rcal::Error => e
+        raise CLI::Kit::Abort, e.message
+      end
+
+      def resolve_timezone(timezone_input, calendar_id)
+        TimezoneResolver.resolve(explicit: timezone_input, calendar_id: calendar_id)
       end
 
       def resolve_color(color_input)

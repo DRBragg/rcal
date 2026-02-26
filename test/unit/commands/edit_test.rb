@@ -1,6 +1,7 @@
 require "test_helper"
 require "rcal/commands/edit"
 require "rcal/models/event"
+require "rcal/models/calendar"
 require "rcal/auth"
 require "rcal/calendar_service"
 
@@ -54,13 +55,13 @@ module Rcal
         existing_event = build_event(id: "event123", summary: "Original Meeting")
         updated_event = build_event(id: "event123", summary: "Updated Meeting")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).with(
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).with(
           calendar_id: "primary",
           event_id: "event123"
         ).returns(existing_event)
-        mock_adapter.expects(:update_event).returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        adapter.expects(:update_event).returns(updated_event)
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--title=Updated Meeting"], "edit")
@@ -70,12 +71,12 @@ module Rcal
         existing_event = build_event(id: "event123", summary: "Original")
         updated_event = build_event(id: "event123", summary: "New Title")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        mock_adapter.expects(:update_event).with { |args|
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
           args[:event].summary == "New Title"
         }.returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--title=New Title"], "edit")
@@ -87,12 +88,12 @@ module Rcal
         existing_event = build_event(id: "event123", summary: "Meeting")
         updated_event = build_event(id: "event123", summary: "Meeting", location: "Room 101")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        mock_adapter.expects(:update_event).with { |args|
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
           args[:event].location == "Room 101"
         }.returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--location=Room 101"], "edit")
@@ -102,12 +103,12 @@ module Rcal
         existing_event = build_event(id: "event123", summary: "Meeting")
         updated_event = build_event(id: "event123", summary: "Meeting")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        mock_adapter.expects(:update_event).with { |args|
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
           args[:event].description == "New description"
         }.returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--description=New description"], "edit")
@@ -121,10 +122,10 @@ module Rcal
         )
         updated_event = build_event(id: "event123", summary: "Meeting")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        mock_adapter.expects(:update_event).returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).returns(updated_event)
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--when=tomorrow 3pm"], "edit")
@@ -139,15 +140,15 @@ module Rcal
         )
         updated_event = build_event(id: "event123", summary: "New Title")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        mock_adapter.expects(:update_event).with { |args|
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
           # Title changes, but location and description should be preserved
           args[:event].summary == "New Title" &&
             args[:event].location == "Original Location" &&
             args[:event].description == "Original Description"
         }.returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--title=New Title"], "edit")
@@ -157,18 +158,174 @@ module Rcal
         existing_event = build_event(id: "event123", summary: "Meeting")
         updated_event = build_event(id: "event123", summary: "Updated")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).with(
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).with(
           calendar_id: "work@company.com",
           event_id: "event123"
         ).returns(existing_event)
-        mock_adapter.expects(:update_event).with { |args|
+        adapter.expects(:update_event).with { |args|
           args[:calendar_id] == "work@company.com"
         }.returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--calendar=work@company.com", "--title=Updated"], "edit")
+      end
+
+      # Timezone option tests
+
+      def test_accepts_timezone_flag
+        existing_event = build_event(id: "event123", summary: "Meeting")
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].timezone == "America/New_York"
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--timezone=America/New_York"], "edit")
+      end
+
+      def test_preserves_existing_timezone_when_not_specified
+        existing_event = build_event(id: "event123", summary: "Meeting", timezone: "America/Chicago")
+        updated_event = build_event(id: "event123", summary: "New Title")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].timezone == "America/Chicago"
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--title=New Title"], "edit")
+      end
+
+      def test_timezone_flag_overrides_existing_timezone
+        existing_event = build_event(id: "event123", summary: "Meeting", timezone: "America/Chicago")
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].timezone == "Europe/London"
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--timezone=Europe/London"], "edit")
+      end
+
+      # Recurrence option tests
+
+      def test_adds_recurrence_to_event
+        existing_event = build_event(id: "event123", summary: "Meeting")
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].recurrence == ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR"]
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--repeat=weekly", "--days=MO,WE,FR"], "edit")
+      end
+
+      def test_removes_recurrence_with_repeat_none
+        existing_event = build_event(
+          id: "event123",
+          summary: "Recurring Meeting",
+          recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
+        )
+        updated_event = build_event(id: "event123", summary: "Recurring Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].recurrence.nil?
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--repeat=none"], "edit")
+      end
+
+      def test_preserves_recurrence_when_not_specified
+        existing_event = build_event(
+          id: "event123",
+          summary: "Weekly Meeting",
+          recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=TU"]
+        )
+        updated_event = build_event(id: "event123", summary: "New Title")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].recurrence == ["RRULE:FREQ=WEEKLY;BYDAY=TU"]
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--title=New Title"], "edit")
+      end
+
+      def test_changes_recurrence_pattern
+        existing_event = build_event(
+          id: "event123",
+          summary: "Meeting",
+          recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]
+        )
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].recurrence == ["RRULE:FREQ=DAILY;COUNT=5"]
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--repeat=daily", "--count=5"], "edit")
+      end
+
+      def test_rejects_invalid_repeat_frequency_on_edit
+        existing_event = build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+
+        error = assert_raises(CLI::Kit::Abort) do
+          cmd.call(["event123", "--repeat=biweekly"], "edit")
+        end
+
+        assert_match(/invalid recurrence frequency/i, error.message)
+      end
+
+      def test_repeat_none_is_case_insensitive
+        existing_event = build_event(
+          id: "event123",
+          summary: "Meeting",
+          recurrence: ["RRULE:FREQ=WEEKLY"]
+        )
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].recurrence.nil?
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--repeat=None"], "edit")
       end
 
       # Color option tests
@@ -177,12 +334,12 @@ module Rcal
         existing_event = build_event(id: "event123", summary: "Meeting")
         updated_event = build_event(id: "event123", summary: "Meeting")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        mock_adapter.expects(:update_event).with { |args|
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
           args[:event].color_id == "7"
         }.returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--color=peacock"], "edit")
@@ -192,12 +349,12 @@ module Rcal
         existing_event = build_event(id: "event123", summary: "Meeting")
         updated_event = build_event(id: "event123", summary: "Meeting")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        mock_adapter.expects(:update_event).with { |args|
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
           args[:event].color_id == "11"
         }.returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--color=11"], "edit")
@@ -207,12 +364,12 @@ module Rcal
         existing_event = build_event(id: "event123", summary: "Meeting", color_id: "11")
         updated_event = build_event(id: "event123", summary: "New Title")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        mock_adapter.expects(:update_event).with { |args|
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
           args[:event].color_id == "11"
         }.returns(updated_event)
-        CalendarService.adapter = mock_adapter
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
         cmd.call(["event123", "--title=New Title"], "edit")
@@ -221,9 +378,9 @@ module Rcal
       def test_rejects_invalid_color
         existing_event = build_event(id: "event123", summary: "Meeting")
 
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).returns(existing_event)
-        CalendarService.adapter = mock_adapter
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
 
@@ -237,9 +394,9 @@ module Rcal
       # Error handling tests
 
       def test_handles_event_not_found
-        mock_adapter = mock("calendar_adapter")
-        mock_adapter.expects(:get_event).raises(StandardError.new("Event not found"))
-        CalendarService.adapter = mock_adapter
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).raises(StandardError.new("Event not found"))
+        CalendarService.adapter = adapter
 
         cmd = Edit.new
 
@@ -276,6 +433,13 @@ module Rcal
 
       private
 
+      def mock_calendar_adapter
+        adapter = mock("calendar_adapter")
+        calendar = Rcal::Calendar.new(id: "primary", name: "Test Calendar", timezone: "America/New_York")
+        adapter.stubs(:get_calendar).returns(calendar)
+        adapter
+      end
+
       def build_event(
         id:,
         summary:,
@@ -283,7 +447,9 @@ module Rcal
         end_time: nil,
         location: nil,
         description: nil,
-        color_id: nil
+        color_id: nil,
+        timezone: nil,
+        recurrence: nil
       )
         start_time ||= Time.now + 3600
         end_time ||= start_time + 3600
@@ -295,7 +461,9 @@ module Rcal
           end_time: end_time,
           location: location,
           description: description,
-          color_id: color_id
+          color_id: color_id,
+          timezone: timezone,
+          recurrence: recurrence
         )
       end
     end

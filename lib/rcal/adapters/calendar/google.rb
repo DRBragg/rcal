@@ -19,6 +19,11 @@ module Rcal
           items.map { |cal| build_calendar(cal) }
         end
 
+        def get_calendar(calendar_id:)
+          google_calendar = @service.get_calendar(calendar_id)
+          build_calendar(google_calendar)
+        end
+
         def list_events(calendar_id:, time_min:, time_max:)
           response = @service.list_events(
             calendar_id,
@@ -136,22 +141,29 @@ module Rcal
             summary: event.summary,
             description: event.description,
             location: event.location,
-            color_id: event.color_id
+            color_id: event.color_id,
+            recurrence: event.recurrence
           )
+
+          tz = event.timezone
 
           if event.all_day?
             google_event.start = ::Google::Apis::CalendarV3::EventDateTime.new(
-              date: event.start_time.to_date.to_s
+              date: event.start_time.to_date.to_s,
+              time_zone: tz
             )
             google_event.end = ::Google::Apis::CalendarV3::EventDateTime.new(
-              date: event.end_time.to_date.to_s
+              date: event.end_time.to_date.to_s,
+              time_zone: tz
             )
           else
             google_event.start = ::Google::Apis::CalendarV3::EventDateTime.new(
-              date_time: event.start_time.iso8601
+              date_time: event.start_time.iso8601,
+              time_zone: tz
             )
             google_event.end = ::Google::Apis::CalendarV3::EventDateTime.new(
-              date_time: event.end_time.iso8601
+              date_time: event.end_time.iso8601,
+              time_zone: tz
             )
           end
 

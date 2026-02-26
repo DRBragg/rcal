@@ -13,6 +13,10 @@ module Rcal
         adapter.list_calendars
       end
 
+      def get_calendar(calendar_id:)
+        adapter.get_calendar(calendar_id: calendar_id)
+      end
+
       def list_events(calendar_id:, time_min:, time_max:)
         adapter.list_events(
           calendar_id: calendar_id,
