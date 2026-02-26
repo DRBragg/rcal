@@ -43,7 +43,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "googleauth", "~> 1.8"
 
   # Open URLs in browser
-  spec.add_dependency "launchy", "~> 2.4"
+  spec.add_dependency "launchy", ">= 2.4", "< 4.0"
 
   # Date/time parsing
   spec.add_dependency "chronic", "~> 0.10"
