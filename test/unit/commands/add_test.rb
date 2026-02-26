@@ -203,6 +203,72 @@ module Rcal
         ], "add")
       end
 
+      # Color option tests
+
+      def test_accepts_color_by_name
+        created_event = build_event(id: "new1", summary: "Important")
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:create_event).with { |args|
+          args[:event].color_id == "11"
+        }.returns(created_event)
+        CalendarService.adapter = mock_adapter
+
+        cmd = Add.new
+        cmd.call([
+          "--title=Important",
+          "--when=tomorrow 3pm",
+          "--color=tomato"
+        ], "add")
+      end
+
+      def test_accepts_color_by_id
+        created_event = build_event(id: "new1", summary: "Meeting")
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:create_event).with { |args|
+          args[:event].color_id == "7"
+        }.returns(created_event)
+        CalendarService.adapter = mock_adapter
+
+        cmd = Add.new
+        cmd.call([
+          "--title=Meeting",
+          "--when=tomorrow 3pm",
+          "--color=7"
+        ], "add")
+      end
+
+      def test_color_defaults_to_nil
+        created_event = build_event(id: "new1", summary: "Meeting")
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:create_event).with { |args|
+          args[:event].color_id.nil?
+        }.returns(created_event)
+        CalendarService.adapter = mock_adapter
+
+        cmd = Add.new
+        cmd.call([
+          "--title=Meeting",
+          "--when=tomorrow 3pm"
+        ], "add")
+      end
+
+      def test_rejects_invalid_color
+        cmd = Add.new
+
+        error = assert_raises(CLI::Kit::Abort) do
+          cmd.call([
+            "--title=Meeting",
+            "--when=tomorrow 3pm",
+            "--color=magenta"
+          ], "add")
+        end
+
+        assert_match(/unknown color/i, error.message)
+      end
+
       # Output tests
 
       def test_displays_created_event

@@ -171,6 +171,69 @@ module Rcal
         cmd.call(["event123", "--calendar=work@company.com", "--title=Updated"], "edit")
       end
 
+      # Color option tests
+
+      def test_updates_event_color_by_name
+        existing_event = build_event(id: "event123", summary: "Meeting")
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:get_event).returns(existing_event)
+        mock_adapter.expects(:update_event).with { |args|
+          args[:event].color_id == "7"
+        }.returns(updated_event)
+        CalendarService.adapter = mock_adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--color=peacock"], "edit")
+      end
+
+      def test_updates_event_color_by_id
+        existing_event = build_event(id: "event123", summary: "Meeting")
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:get_event).returns(existing_event)
+        mock_adapter.expects(:update_event).with { |args|
+          args[:event].color_id == "11"
+        }.returns(updated_event)
+        CalendarService.adapter = mock_adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--color=11"], "edit")
+      end
+
+      def test_preserves_existing_color_when_not_specified
+        existing_event = build_event(id: "event123", summary: "Meeting", color_id: "11")
+        updated_event = build_event(id: "event123", summary: "New Title")
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:get_event).returns(existing_event)
+        mock_adapter.expects(:update_event).with { |args|
+          args[:event].color_id == "11"
+        }.returns(updated_event)
+        CalendarService.adapter = mock_adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--title=New Title"], "edit")
+      end
+
+      def test_rejects_invalid_color
+        existing_event = build_event(id: "event123", summary: "Meeting")
+
+        mock_adapter = mock("calendar_adapter")
+        mock_adapter.expects(:get_event).returns(existing_event)
+        CalendarService.adapter = mock_adapter
+
+        cmd = Edit.new
+
+        error = assert_raises(CLI::Kit::Abort) do
+          cmd.call(["event123", "--color=magenta"], "edit")
+        end
+
+        assert_match(/unknown color/i, error.message)
+      end
+
       # Error handling tests
 
       def test_handles_event_not_found
@@ -219,7 +282,8 @@ module Rcal
         start_time: nil,
         end_time: nil,
         location: nil,
-        description: nil
+        description: nil,
+        color_id: nil
       )
         start_time ||= Time.now + 3600
         end_time ||= start_time + 3600
@@ -230,7 +294,8 @@ module Rcal
           start_time: start_time,
           end_time: end_time,
           location: location,
-          description: description
+          description: description,
+          color_id: color_id
         )
       end
     end

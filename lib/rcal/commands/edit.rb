@@ -5,6 +5,7 @@ require_relative "../date_parser"
 require_relative "../duration_parser"
 require_relative "../models/event"
 require_relative "../presenters/event_presenter"
+require_relative "../color_map"
 
 module Rcal
   module Commands
@@ -25,11 +26,13 @@ module Rcal
             --location=TEXT     New event location
             --description=TEXT  New event description
             --calendar=ID       Calendar containing the event (default: primary)
+            --color=COLOR       New event color (name or ID). Run 'rcal colors' to see options
 
           Examples:
             rcal edit abc123 --title="Updated Meeting"
             rcal edit abc123 --when="tomorrow 4pm" --duration=30m
             rcal edit abc123 --location="Room 202" --calendar=work@company.com
+            rcal edit abc123 --color=peacock
         HELP
       end
 
@@ -55,7 +58,7 @@ module Rcal
 
       private
 
-      VALUE_OPTIONS = %w[title when duration location description calendar].freeze
+      VALUE_OPTIONS = %w[title when duration location description calendar color].freeze
 
       def parse_options(args)
         options = {calendar: "primary"}
@@ -101,6 +104,7 @@ module Rcal
         summary = options[:title] || existing_event.summary
         location = options.key?(:location) ? options[:location] : existing_event.location
         description = options.key?(:description) ? options[:description] : existing_event.description
+        color_id = options.key?(:color) ? resolve_color(options[:color]) : existing_event.color_id
 
         start_time = if options[:when]
           parse_start_time(options[:when])
@@ -127,8 +131,17 @@ module Rcal
           location: location,
           description: description,
           all_day: existing_event.all_day?,
-          calendar_id: existing_event.calendar_id
+          calendar_id: existing_event.calendar_id,
+          color_id: color_id
         )
+      end
+
+      def resolve_color(color_input)
+        return nil if color_input.nil?
+
+        ColorMap.resolve(color_input)
+      rescue Rcal::Error => e
+        raise CLI::Kit::Abort, e.message
       end
 
       def parse_start_time(when_text)

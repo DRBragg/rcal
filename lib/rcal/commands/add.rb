@@ -5,6 +5,7 @@ require_relative "../date_parser"
 require_relative "../duration_parser"
 require_relative "../models/event"
 require_relative "../presenters/event_presenter"
+require_relative "../color_map"
 
 module Rcal
   module Commands
@@ -26,12 +27,14 @@ module Rcal
             --location=TEXT     Event location
             --description=TEXT  Event description
             --calendar=ID       Calendar to add event to (default: primary)
+            --color=COLOR       Event color (name or ID). Run 'rcal colors' to see options
             --all-day           Create an all-day event
 
           Examples:
             rcal add --title="Team Meeting" --when="tomorrow 3pm"
             rcal add --title="Lunch" --when="friday noon" --duration=1h --location="Cafe"
             rcal add --title="Vacation" --when="monday" --all-day
+            rcal add --title="Important" --when="tomorrow 9am" --color=tomato
         HELP
       end
 
@@ -53,7 +56,7 @@ module Rcal
 
       private
 
-      VALUE_OPTIONS = %w[title when duration location description calendar].freeze
+      VALUE_OPTIONS = %w[title when duration location description calendar color].freeze
       FLAG_OPTIONS = {"all-day" => :all_day}.freeze
 
       def parse_options(args)
@@ -104,7 +107,8 @@ module Rcal
           end_time: end_time,
           location: options[:location],
           description: options[:description],
-          all_day: options[:all_day]
+          all_day: options[:all_day],
+          color_id: resolve_color(options[:color])
         )
       end
 
@@ -129,6 +133,14 @@ module Rcal
         else
           start_time + duration
         end
+      end
+
+      def resolve_color(color_input)
+        return nil if color_input.nil?
+
+        ColorMap.resolve(color_input)
+      rescue Rcal::Error => e
+        raise CLI::Kit::Abort, e.message
       end
 
       def display_created_event(event)
