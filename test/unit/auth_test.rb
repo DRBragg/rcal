@@ -56,6 +56,36 @@ module Rcal
       Auth.clear_credentials
     end
 
+    def test_load_client_credentials_delegates_to_adapter
+      mock_adapter = mock("auth_adapter")
+      mock_adapter.expects(:load_client_credentials).returns({"client_id" => "test"})
+
+      Auth.adapter = mock_adapter
+      result = Auth.load_client_credentials
+
+      assert_equal({"client_id" => "test"}, result)
+    end
+
+    def test_token_path_delegates_to_adapter
+      mock_adapter = mock("auth_adapter")
+      mock_adapter.expects(:token_path).returns("/path/to/tokens.yaml")
+
+      Auth.adapter = mock_adapter
+      result = Auth.token_path
+
+      assert_equal "/path/to/tokens.yaml", result
+    end
+
+    def test_client_credentials_path_delegates_to_adapter
+      mock_adapter = mock("auth_adapter")
+      mock_adapter.expects(:client_credentials_path).returns("/path/to/creds.json")
+
+      Auth.adapter = mock_adapter
+      result = Auth.client_credentials_path
+
+      assert_equal "/path/to/creds.json", result
+    end
+
     def test_uses_default_google_adapter
       assert_instance_of Adapters::Auth::Google, Auth.adapter
     end

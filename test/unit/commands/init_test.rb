@@ -68,14 +68,7 @@ module Rcal
       # Already authenticated tests
 
       def test_warns_if_already_authenticated
-        # Create existing token file
-        token_path = File.join(@temp_dir, "tokens.json")
-        FileUtils.mkdir_p(File.dirname(token_path))
-        File.write(token_path, JSON.generate({
-          "access_token" => "existing",
-          "refresh_token" => "existing_refresh",
-          "expires_at" => (Time.now + 3600).to_i
-        }))
+        write_existing_tokens
 
         # Reset to pick up the new token file
         Auth.reset_adapter!
@@ -94,14 +87,7 @@ module Rcal
       end
 
       def test_proceeds_if_user_confirms_reauth
-        # Create existing token file
-        token_path = File.join(@temp_dir, "tokens.json")
-        FileUtils.mkdir_p(File.dirname(token_path))
-        File.write(token_path, JSON.generate({
-          "access_token" => "existing",
-          "refresh_token" => "existing_refresh",
-          "expires_at" => (Time.now + 3600).to_i
-        }))
+        write_existing_tokens
 
         # Reset to pick up the new token file
         Auth.reset_adapter!
@@ -121,6 +107,53 @@ module Rcal
         ], "init")
       end
 
+      def test_clear_credentials_removes_yaml_token_file
+        write_existing_tokens
+
+        Auth.reset_adapter!
+
+        cmd = Init.new
+        mock_authorizer = mock("authorizer")
+        mock_authorizer.stubs(:get_credentials).returns(stub_credentials)
+
+        cmd.stubs(:build_authorizer).returns(mock_authorizer)
+        CLI::UI::Prompt.stubs(:confirm).returns(true)
+
+        cmd.call([
+          "--client-id=test.apps.googleusercontent.com",
+          "--client-secret=test_secret"
+        ], "init")
+
+        # The old tokens should have been cleared before re-auth
+        # New credentials will be stored, but the old file was deleted first
+        token_path = File.join(@temp_dir, "google_tokens.yaml")
+        assert File.exist?(token_path), "New token file should be created after re-auth"
+      end
+
+      def test_clear_credentials_also_removes_legacy_tokens_json
+        # Create a legacy tokens.json file
+        legacy_path = File.join(@temp_dir, "tokens.json")
+        File.write(legacy_path, JSON.generate({"access_token" => "legacy"}))
+
+        write_existing_tokens
+
+        Auth.reset_adapter!
+
+        cmd = Init.new
+        mock_authorizer = mock("authorizer")
+        mock_authorizer.stubs(:get_credentials).returns(stub_credentials)
+
+        cmd.stubs(:build_authorizer).returns(mock_authorizer)
+        CLI::UI::Prompt.stubs(:confirm).returns(true)
+
+        cmd.call([
+          "--client-id=test.apps.googleusercontent.com",
+          "--client-secret=test_secret"
+        ], "init")
+
+        refute File.exist?(legacy_path), "Legacy tokens.json should be cleaned up during re-auth"
+      end
+
       # OAuth flow tests
 
       def test_stores_credentials_after_successful_auth
@@ -137,13 +170,51 @@ module Rcal
           "--client-secret=test_secret"
         ], "init")
 
-        # Verify token file was created
-        token_path = File.join(@temp_dir, "tokens.json")
+        # Verify token file was created in YAML format
+        token_path = File.join(@temp_dir, "google_tokens.yaml")
         assert File.exist?(token_path), "Token file should be created"
 
-        stored = JSON.parse(File.read(token_path))
+        yaml_data = YAML.safe_load_file(token_path)
+        stored = JSON.parse(yaml_data["default"])
         assert_equal "new_access_token", stored["access_token"]
         assert_equal "new_refresh_token", stored["refresh_token"]
+      end
+
+      def test_stores_client_credentials
+        cmd = Init.new
+        mock_authorizer = mock("authorizer")
+        mock_authorizer.stubs(:get_credentials).returns(stub_credentials)
+
+        cmd.stubs(:build_authorizer).returns(mock_authorizer)
+
+        cmd.call([
+          "--client-id=test.apps.googleusercontent.com",
+          "--client-secret=my_secret"
+        ], "init")
+
+        creds_path = File.join(@temp_dir, "client_credentials.json")
+        assert File.exist?(creds_path), "Client credentials file should be created"
+
+        stored = JSON.parse(File.read(creds_path))
+        assert_equal "test.apps.googleusercontent.com", stored["client_id"]
+        assert_equal "my_secret", stored["client_secret"]
+      end
+
+      def test_client_credentials_have_restricted_permissions
+        cmd = Init.new
+        mock_authorizer = mock("authorizer")
+        mock_authorizer.stubs(:get_credentials).returns(stub_credentials)
+
+        cmd.stubs(:build_authorizer).returns(mock_authorizer)
+
+        cmd.call([
+          "--client-id=test.apps.googleusercontent.com",
+          "--client-secret=test_secret"
+        ], "init")
+
+        creds_path = File.join(@temp_dir, "client_credentials.json")
+        mode = File.stat(creds_path).mode & 0o777
+        assert_equal 0o600, mode, "Client credentials should have restricted permissions"
       end
 
       def test_displays_success_message
@@ -178,6 +249,79 @@ module Rcal
         assert_match(/fail|error|cancel/i, error.message)
       end
 
+      # Loopback redirect tests
+
+      def test_open_browser_returns_true_when_launchy_succeeds
+        cmd = Init.new
+
+        require "launchy"
+        Launchy.stubs(:open).returns(true)
+
+        assert cmd.send(:open_browser, "http://example.com")
+      end
+
+      def test_open_browser_returns_false_when_launchy_fails
+        cmd = Init.new
+
+        require "launchy"
+        Launchy.stubs(:open).raises(StandardError.new("no browser"))
+
+        refute cmd.send(:open_browser, "http://example.com")
+      end
+
+      def test_extract_code_from_request_parses_code_parameter
+        cmd = Init.new
+
+        request_line = "GET /oauth2callback?code=4/0AXxxxx&scope=https://www.googleapis.com/auth/calendar HTTP/1.1"
+        code = cmd.send(:extract_code_from_request, request_line)
+
+        assert_equal "4/0AXxxxx", code
+      end
+
+      def test_extract_code_from_request_returns_nil_for_missing_code
+        cmd = Init.new
+
+        request_line = "GET /oauth2callback?error=access_denied HTTP/1.1"
+        code = cmd.send(:extract_code_from_request, request_line)
+
+        assert_nil code
+      end
+
+      def test_extract_code_from_request_returns_nil_for_nil_input
+        cmd = Init.new
+
+        assert_nil cmd.send(:extract_code_from_request, nil)
+      end
+
+      def test_extract_error_from_request_parses_error_parameter
+        cmd = Init.new
+
+        request_line = "GET /oauth2callback?error=access_denied HTTP/1.1"
+        error = cmd.send(:extract_error_from_request, request_line)
+
+        assert_equal "access_denied", error
+      end
+
+      def test_obtain_code_via_manual_entry_parses_url_with_code
+        cmd = Init.new
+
+        CLI::UI.stubs(:ask).returns("http://127.0.0.1:12345?code=4/0AXtest&scope=calendar")
+
+        code = cmd.send(:obtain_code_via_manual_entry)
+
+        assert_equal "4/0AXtest", code
+      end
+
+      def test_obtain_code_via_manual_entry_handles_plain_code
+        cmd = Init.new
+
+        CLI::UI.stubs(:ask).returns("4/0AXtest")
+
+        code = cmd.send(:obtain_code_via_manual_entry)
+
+        assert_equal "4/0AXtest", code
+      end
+
       # Help text test
 
       def test_has_help_text
@@ -188,10 +332,28 @@ module Rcal
 
       def stub_credentials
         creds = mock("credentials")
+        creds.stubs(:client_id).returns("test.apps.googleusercontent.com")
         creds.stubs(:access_token).returns("new_access_token")
         creds.stubs(:refresh_token).returns("new_refresh_token")
+        creds.stubs(:scope).returns(["https://www.googleapis.com/auth/calendar.readonly"])
         creds.stubs(:expires_at).returns(Time.now + 3600)
         creds
+      end
+
+      def write_existing_tokens
+        token_data = {
+          "client_id" => "existing.apps.googleusercontent.com",
+          "access_token" => "existing",
+          "refresh_token" => "existing_refresh",
+          "expiration_time_millis" => (Time.now.to_i + 3600) * 1000
+        }
+
+        yaml_data = {"default" => JSON.generate(token_data)}
+        File.write(File.join(@temp_dir, "google_tokens.yaml"), YAML.dump(yaml_data))
+
+        # Also need client credentials for authenticated? check
+        client_creds = {"client_id" => "existing.apps.googleusercontent.com", "client_secret" => "secret"}
+        File.write(File.join(@temp_dir, "client_credentials.json"), JSON.generate(client_creds))
       end
     end
   end

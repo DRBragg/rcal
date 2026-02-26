@@ -7,6 +7,8 @@ require "rcal/calendar_service"
 module Rcal
   module Commands
     class QuickTest < Minitest::Test
+      include AuthTestHelper
+
       def setup
         @temp_dir = Dir.mktmpdir
         @original_stdout = $stdout
@@ -18,13 +20,8 @@ module Rcal
         Auth.reset_adapter!
         CalendarService.reset_adapter!
 
-        # Create token file so we appear authenticated
-        token_path = File.join(@temp_dir, "tokens.json")
-        File.write(token_path, JSON.generate({
-          "access_token" => "test_token",
-          "refresh_token" => "test_refresh",
-          "expires_at" => (Time.now + 3600).to_i
-        }))
+        # Write auth files so we appear authenticated
+        write_auth_files(@temp_dir)
       end
 
       def teardown
@@ -151,8 +148,9 @@ module Rcal
       # Authentication tests
 
       def test_requires_authentication
-        token_path = File.join(@temp_dir, "tokens.json")
-        FileUtils.rm_f(token_path)
+        # Use a clean temp dir with no auth files
+        clean_dir = Dir.mktmpdir
+        Rcal::Configuration.stubs(:data_dir).returns(clean_dir)
         Auth.reset_adapter!
 
         cmd = Quick.new

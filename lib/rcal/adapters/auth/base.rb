@@ -10,6 +10,10 @@ module Rcal
           raise NotImplementedError, "#{self.class} must implement #load_credentials"
         end
 
+        def load_client_credentials
+          raise NotImplementedError, "#{self.class} must implement #load_client_credentials"
+        end
+
         def authenticated?
           raise NotImplementedError, "#{self.class} must implement #authenticated?"
         end
@@ -20,6 +24,14 @@ module Rcal
 
         def clear_credentials
           raise NotImplementedError, "#{self.class} must implement #clear_credentials"
+        end
+
+        def token_path
+          raise NotImplementedError, "#{self.class} must implement #token_path"
+        end
+
+        def client_credentials_path
+          raise NotImplementedError, "#{self.class} must implement #client_credentials_path"
         end
       end
     end
