@@ -142,7 +142,8 @@ module Rcal
             description: event.description,
             location: event.location,
             color_id: event.color_id,
-            recurrence: event.recurrence
+            recurrence: event.recurrence,
+            transparency: event.transparency
           )
 
           tz = event.timezone

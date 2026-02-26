@@ -541,6 +541,78 @@ module Rcal
           assert_equal "Updated Meeting", result.summary
         end
 
+        # Transparency Tests
+
+        def test_create_event_sets_transparency
+          input_event = Rcal::Event.new(
+            summary: "Focus Time",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 12, 0, 0),
+            transparency: "transparent"
+          )
+
+          created_event = stub_single_event(
+            id: "new1",
+            summary: "Focus Time",
+            transparency: "transparent"
+          )
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_equal "transparent", google_event.transparency
+            true
+          end.returns(created_event)
+
+          result = @adapter.create_event(calendar_id: "primary", event: input_event)
+
+          assert_equal "transparent", result.transparency
+        end
+
+        def test_create_event_transparency_nil_when_not_set
+          input_event = Rcal::Event.new(
+            summary: "Regular Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0)
+          )
+
+          created_event = stub_single_event(id: "new1", summary: "Regular Meeting")
+
+          @mock_service.expects(:insert_event).with("primary", anything) do |_cal_id, google_event|
+            assert_nil google_event.transparency
+            true
+          end.returns(created_event)
+
+          @adapter.create_event(calendar_id: "primary", event: input_event)
+        end
+
+        def test_update_event_sets_transparency
+          input_event = Rcal::Event.new(
+            id: "existing123",
+            summary: "Meeting",
+            start_time: Time.new(2024, 1, 15, 10, 0, 0),
+            end_time: Time.new(2024, 1, 15, 11, 0, 0),
+            transparency: "opaque"
+          )
+
+          updated_event = stub_single_event(
+            id: "existing123",
+            summary: "Meeting",
+            transparency: "opaque"
+          )
+
+          @mock_service.expects(:update_event).with("primary", "existing123", anything) do |_cal, _id, google_event|
+            assert_equal "opaque", google_event.transparency
+            true
+          end.returns(updated_event)
+
+          result = @adapter.update_event(
+            calendar_id: "primary",
+            event_id: "existing123",
+            event: input_event
+          )
+
+          assert_equal "opaque", result.transparency
+        end
+
         # Delete Event Tests
 
         def test_delete_event_calls_service

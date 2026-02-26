@@ -204,6 +204,41 @@ module Rcal
         ], "add")
       end
 
+      # Transparency tests
+
+      def test_creates_free_event
+        created_event = build_event(id: "free1", summary: "Focus Time")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:create_event).with { |args|
+          args[:event].transparency == "transparent"
+        }.returns(created_event)
+        CalendarService.adapter = adapter
+
+        cmd = Add.new
+        cmd.call([
+          "--title=Focus Time",
+          "--when=tomorrow 2pm",
+          "--free"
+        ], "add")
+      end
+
+      def test_defaults_to_busy_without_free_flag
+        created_event = build_event(id: "busy1", summary: "Team Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:create_event).with { |args|
+          args[:event].transparency.nil?
+        }.returns(created_event)
+        CalendarService.adapter = adapter
+
+        cmd = Add.new
+        cmd.call([
+          "--title=Team Meeting",
+          "--when=tomorrow 3pm"
+        ], "add")
+      end
+
       # Timezone option tests
 
       def test_accepts_timezone_flag

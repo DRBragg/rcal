@@ -32,6 +32,7 @@ module Rcal
             --color=COLOR       Event color (name or ID). Run 'rcal colors' to see options
             --timezone=TZ       IANA timezone (e.g., "America/New_York"). Default: calendar's timezone
             --all-day           Create an all-day event
+            --free              Mark event as free (default: busy)
 
           Recurrence:
             --repeat=FREQ       Recurrence frequency: daily, weekly, monthly, yearly
@@ -45,6 +46,7 @@ module Rcal
             rcal add --title="Lunch" --when="friday noon" --duration=1h --location="Cafe"
             rcal add --title="Vacation" --when="monday" --all-day
             rcal add --title="Important" --when="tomorrow 9am" --color=tomato
+            rcal add --title="Focus Time" --when="tomorrow 2pm" --duration=2h --free
             rcal add --title="Standup" --when="monday 9am" --repeat=weekly --days=MO,WE,FR
             rcal add --title="1:1" --when="monday 2pm" --repeat=weekly --interval=2 --count=10
         HELP
@@ -69,7 +71,7 @@ module Rcal
       private
 
       VALUE_OPTIONS = %w[title when duration location description calendar color timezone repeat days count until interval].freeze
-      FLAG_OPTIONS = {"all-day" => :all_day}.freeze
+      FLAG_OPTIONS = {"all-day" => :all_day, "free" => :free}.freeze
 
       def parse_options(args)
         options = {calendar: "primary", all_day: false}
@@ -137,7 +139,8 @@ module Rcal
           all_day: options[:all_day],
           color_id: resolve_color(options[:color]),
           timezone: timezone,
-          recurrence: recurrence
+          recurrence: recurrence,
+          transparency: options[:free] ? "transparent" : nil
         )
       end
 

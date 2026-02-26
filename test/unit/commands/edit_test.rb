@@ -172,6 +172,69 @@ module Rcal
         cmd.call(["event123", "--calendar=work@company.com", "--title=Updated"], "edit")
       end
 
+      # Transparency tests
+
+      def test_updates_event_to_free
+        existing_event = build_event(id: "event123", summary: "Meeting")
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].transparency == "transparent"
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--free"], "edit")
+      end
+
+      def test_updates_event_to_busy
+        existing_event = build_event(id: "event123", summary: "Meeting", transparency: "transparent")
+        updated_event = build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].transparency == "opaque"
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--busy"], "edit")
+      end
+
+      def test_preserves_existing_transparency_when_not_specified
+        existing_event = build_event(id: "event123", summary: "Meeting", transparency: "transparent")
+        updated_event = build_event(id: "event123", summary: "New Title")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).returns(existing_event)
+        adapter.expects(:update_event).with { |args|
+          args[:event].transparency == "transparent"
+        }.returns(updated_event)
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+        cmd.call(["event123", "--title=New Title"], "edit")
+      end
+
+      def test_rejects_free_and_busy_together
+        build_event(id: "event123", summary: "Meeting")
+
+        adapter = mock_calendar_adapter
+        adapter.expects(:get_event).never
+        CalendarService.adapter = adapter
+
+        cmd = Edit.new
+
+        error = assert_raises(CLI::Kit::Abort) do
+          cmd.call(["event123", "--free", "--busy"], "edit")
+        end
+
+        assert_match(/cannot use --free and --busy together/i, error.message)
+      end
+
       # Timezone option tests
 
       def test_accepts_timezone_flag
@@ -449,7 +512,8 @@ module Rcal
         description: nil,
         color_id: nil,
         timezone: nil,
-        recurrence: nil
+        recurrence: nil,
+        transparency: nil
       )
         start_time ||= Time.now + 3600
         end_time ||= start_time + 3600
@@ -463,7 +527,8 @@ module Rcal
           description: description,
           color_id: color_id,
           timezone: timezone,
-          recurrence: recurrence
+          recurrence: recurrence,
+          transparency: transparency
         )
       end
     end
