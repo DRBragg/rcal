@@ -30,6 +30,8 @@ module Rcal
             --calendar=ID       Calendar containing the event (default: primary)
             --color=COLOR       New event color (name or ID). Run 'rcal colors' to see options
             --timezone=TZ       IANA timezone (e.g., "America/New_York")
+            --free              Mark event as free (does not block calendar)
+            --busy              Mark event as busy (blocks calendar)
 
           Recurrence:
             --repeat=FREQ       Change recurrence: daily, weekly, monthly, yearly, or "none" to remove
@@ -43,6 +45,8 @@ module Rcal
             rcal edit abc123 --when="tomorrow 4pm" --duration=30m
             rcal edit abc123 --location="Room 202" --calendar=work@company.com
             rcal edit abc123 --color=peacock
+            rcal edit abc123 --free
+            rcal edit abc123 --busy
             rcal edit abc123 --repeat=weekly --days=MO,WE,FR
             rcal edit abc123 --repeat=none
         HELP
@@ -71,6 +75,7 @@ module Rcal
       private
 
       VALUE_OPTIONS = %w[title when duration location description calendar color timezone repeat days count until interval].freeze
+      FLAG_OPTIONS = {"free" => :free, "busy" => :busy}.freeze
 
       def parse_options(args)
         options = {calendar: "primary"}
@@ -79,10 +84,14 @@ module Rcal
           case parse_arg(arg)
           in {option:, value:} if VALUE_OPTIONS.include?(option)
             options[option.tr("-", "_").to_sym] = value
+          in {flag:} if FLAG_OPTIONS.key?(flag)
+            options[FLAG_OPTIONS[flag]] = true
           else
             nil
           end
         end
+
+        validate_transparency_options!(options)
 
         options
       end
@@ -106,6 +115,22 @@ module Rcal
         end
       end
 
+      def validate_transparency_options!(options)
+        if options[:free] && options[:busy]
+          raise CLI::Kit::Abort, "Cannot use --free and --busy together."
+        end
+      end
+
+      def resolve_transparency(options, existing_event)
+        if options[:free]
+          "transparent"
+        elsif options[:busy]
+          "opaque"
+        else
+          existing_event.transparency
+        end
+      end
+
       def fetch_event(calendar_id, event_id)
         CalendarService.get_event(calendar_id: calendar_id, event_id: event_id)
       rescue => e
@@ -119,6 +144,7 @@ module Rcal
         color_id = options.key?(:color) ? resolve_color(options[:color]) : existing_event.color_id
         timezone = resolve_timezone(options[:timezone], existing_event.timezone, options[:calendar])
         recurrence = resolve_recurrence(options, existing_event)
+        transparency = resolve_transparency(options, existing_event)
 
         start_time = if options[:when]
           parse_start_time(options[:when])
@@ -148,7 +174,8 @@ module Rcal
           calendar_id: existing_event.calendar_id,
           color_id: color_id,
           timezone: timezone,
-          recurrence: recurrence
+          recurrence: recurrence,
+          transparency: transparency
         )
       end
 
