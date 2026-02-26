@@ -104,7 +104,7 @@ module Rcal
             # Google returns DateTime; convert to Time for consistent arithmetic
             [time_obj.date_time.to_time, false]
           elsif time_obj.date
-            [Date.parse(time_obj.date).to_time, true]
+            [time_obj.date.to_time, true]
           else
             [Time.now, false]
           end
