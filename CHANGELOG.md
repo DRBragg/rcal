@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-02-26
+
+### Fixed
+
+- Improved auth flow: replaced deprecated OOB OAuth with loopback (with headless fallback), unified token storage, fixed auto-refresh for stored tokens, and improved error handling ([#12])
+
 ## [0.2.0] - 2026-02-26
 
 ### Added
