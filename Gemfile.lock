@@ -82,7 +82,7 @@ GEM
       builder
       minitest (>= 5.0)
       ruby-progressbar
-    mocha (2.8.2)
+    mocha (3.0.2)
       ruby2_keywords (>= 0.0.5)
     multi_json (1.19.1)
     net-http (0.9.1)
@@ -162,7 +162,7 @@ PLATFORMS
 DEPENDENCIES
   minitest (~> 5.20)
   minitest-reporters
-  mocha (~> 2.1)
+  mocha (~> 3.0)
   r_cal!
   rake
   standard
@@ -199,7 +199,7 @@ CHECKSUMS
   mini_mime (1.1.5) sha256=8681b7e2e4215f2a159f9400b5816d85e9d8c6c6b491e96a12797e798f8bccef
   minitest (5.27.0) sha256=2d3b17f8a36fe7801c1adcffdbc38233b938eb0b4966e97a6739055a45fa77d5
   minitest-reporters (1.7.1) sha256=5060413a0c95b8c32fe73e0606f3631c173a884d7900e50013e15094eb50562c
-  mocha (2.8.2) sha256=1f77e729db47e72b4ef776461ce20caeec2572ffdf23365b0a03608fee8f4eee
+  mocha (3.0.2) sha256=3d8029531d8b71bff5ae07040758f77fdf578174189ffda1bef7749a59e92df8
   multi_json (1.19.1) sha256=7aefeff8f2c854bf739931a238e4aea64592845e0c0395c8a7d2eea7fdd631b7
   net-http (0.9.1) sha256=25ba0b67c63e89df626ed8fac771d0ad24ad151a858af2cc8e6a716ca4336996
   numerizer (0.1.1) sha256=10ec9efec62472b69a3a0e275a18a44baa595ce6e2e4cfc1678d5cb2974c336f
